@@ -16,7 +16,7 @@ from fastapi.responses import StreamingResponse
 from sse_starlette.sse import EventSourceResponse
 import uvicorn
 
-from tools import execute_shell_command, TOOL_SCHEMA
+from tools import TOOLS, TOOL_SCHEMAS
 
 
 app = FastAPI(title="Vulnerable MCP Server")
@@ -29,9 +29,7 @@ class MCPServer:
     """Handles MCP protocol messages and tool execution."""
 
     def __init__(self):
-        self.tools = {
-            "execute_shell_command": execute_shell_command
-        }
+        self.tools = TOOLS
 
     def handle_initialize(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle MCP initialize request."""
@@ -49,7 +47,7 @@ class MCPServer:
     def handle_list_tools(self) -> Dict[str, Any]:
         """Return available tools."""
         return {
-            "tools": [TOOL_SCHEMA]
+            "tools": TOOL_SCHEMAS
         }
 
     def handle_call_tool(self, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -72,12 +70,34 @@ class MCPServer:
         tool_func = self.tools[tool_name]
         result = tool_func(**arguments)
 
-        # Format response according to MCP spec
-        output_text = f"Exit Code: {result['exit_code']}\n"
-        if result['stdout']:
-            output_text += f"Output:\n{result['stdout']}\n"
-        if result['stderr']:
-            output_text += f"Error:\n{result['stderr']}\n"
+        # Format response based on tool type
+        if 'exit_code' in result:
+            # Shell command format
+            output_text = f"Exit Code: {result['exit_code']}\n"
+            if result.get('stdout'):
+                output_text += f"Output:\n{result['stdout']}\n"
+            if result.get('stderr'):
+                output_text += f"Error:\n{result['stderr']}\n"
+        elif 'content' in result:
+            # File read format
+            output_text = f"File: {result.get('filename', 'N/A')}\n\n{result['content']}"
+        elif 'results' in result:
+            # Search results format
+            output_text = f"Search Pattern: {result.get('pattern', 'N/A')}\n\n{result['results']}"
+        elif 'result' in result:
+            # Python code execution format
+            output_text = f"Code: {result.get('code', 'N/A')}\n\nResult:\n{result['result']}"
+        elif 'variable' in result:
+            # Environment variable format
+            output_text = f"Variable: {result['variable']}\nValue: {result.get('value', '(not set)')}"
+        else:
+            # Fallback
+            output_text = str(result)
+
+        # Check for errors
+        is_error = result.get('error') is not None or not result.get('success', True)
+        if result.get('error'):
+            output_text += f"\n\nError: {result['error']}"
 
         return {
             "content": [
@@ -86,7 +106,7 @@ class MCPServer:
                     "text": output_text.strip()
                 }
             ],
-            "isError": not result['success']
+            "isError": is_error
         }
 
     def handle_message(self, message: Dict[str, Any]) -> Dict[str, Any]:

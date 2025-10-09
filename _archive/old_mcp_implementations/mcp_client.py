@@ -5,6 +5,7 @@ MCP Client for connecting to the vulnerable MCP server via SSE.
 import json
 import asyncio
 import uuid
+import threading
 from typing import Dict, Any, Optional
 import httpx
 from sseclient import SSEClient
@@ -19,6 +20,8 @@ class MCPClient:
         self.message_url = None
         self.connection_id = None
         self.tools = []
+        self.sse_task = None
+        self.response_queue = asyncio.Queue()
 
     async def connect(self):
         """Establish SSE connection to MCP server."""
@@ -121,23 +124,46 @@ class MCPClient:
 
 
 class SyncMCPClient:
-    """Synchronous wrapper for MCP client."""
+    """Synchronous wrapper for MCP client that works with existing event loops."""
 
     def __init__(self, base_url: str):
         self.client = MCPClient(base_url)
         self._initialized = False
 
+    def _run_in_thread(self, coro):
+        """Run an async coroutine in a dedicated thread with its own event loop."""
+        result = None
+        exception = None
+
+        def run():
+            nonlocal result, exception
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                result = loop.run_until_complete(coro)
+                loop.close()
+            except Exception as e:
+                exception = e
+
+        thread = threading.Thread(target=run)
+        thread.start()
+        thread.join()
+
+        if exception:
+            raise exception
+        return result
+
     def connect(self):
         """Connect to MCP server."""
         if not self._initialized:
-            asyncio.run(self.client.connect())
+            self._run_in_thread(self.client.connect())
             self._initialized = True
 
     def call_tool(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Call a tool synchronously."""
         if not self._initialized:
             self.connect()
-        return asyncio.run(self.client.call_tool(name, arguments))
+        return self._run_in_thread(self.client.call_tool(name, arguments))
 
     def get_tools(self):
         """Get list of available tools."""

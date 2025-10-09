@@ -10,7 +10,7 @@ from typing import Dict, Any
 class ResearchLogger:
     """Logs agent attempts and results to text files."""
 
-    def __init__(self, log_dir: str = "../results"):
+    def __init__(self, log_dir: str = "results"):
         self.log_dir = log_dir
         os.makedirs(log_dir, exist_ok=True)
 

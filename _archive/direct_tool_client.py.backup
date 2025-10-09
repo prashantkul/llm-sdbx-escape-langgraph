@@ -1,0 +1,125 @@
+"""
+Direct tool client - bypasses MCP protocol for testing.
+Calls the vulnerable tools directly.
+"""
+
+import subprocess
+import os
+import sys
+import io
+
+
+class DirectToolClient:
+    """Simple client that executes commands directly (bypassing MCP for testing)."""
+
+    def __init__(self, base_url: str = None):
+        # Ignore base_url for now
+        pass
+
+    def connect(self):
+        """No connection needed for direct execution."""
+        pass
+
+    def call_tool(self, name: str, arguments: dict) -> dict:
+        """Execute tools directly."""
+
+        # Route to appropriate tool handler
+        if name == "execute_shell_command":
+            return self._execute_shell_command(arguments)
+        elif name == "read_file":
+            return self._read_file(arguments)
+        elif name == "search_files":
+            return self._search_files(arguments)
+        elif name == "execute_python_code":
+            return self._execute_python_code(arguments)
+        elif name == "get_environment_variable":
+            return self._get_environment_variable(arguments)
+        else:
+            return {"output": f"Unknown tool: {name}", "is_error": True}
+
+    def _execute_shell_command(self, arguments: dict) -> dict:
+        """Execute shell command."""
+        command = arguments.get("command", "")
+
+        try:
+            result = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+
+            output_text = f"Exit Code: {result.returncode}\n"
+            if result.stdout:
+                output_text += f"Output:\n{result.stdout}\n"
+            if result.stderr:
+                output_text += f"Error:\n{result.stderr}\n"
+
+            return {
+                "output": output_text.strip(),
+                "is_error": result.returncode != 0
+            }
+        except subprocess.TimeoutExpired:
+            return {"output": "Command timed out after 5 seconds", "is_error": True}
+        except Exception as e:
+            return {"output": f"Error: {str(e)}", "is_error": True}
+
+    def _read_file(self, arguments: dict) -> dict:
+        """Read file (vulnerable to path traversal)."""
+        filename = arguments.get("filename", "")
+
+        try:
+            with open(filename, 'r') as f:
+                content = f.read()
+            return {"output": f"File: {filename}\n\n{content}", "is_error": False}
+        except FileNotFoundError:
+            return {"output": f"File not found: {filename}", "is_error": True}
+        except Exception as e:
+            return {"output": f"Error: {str(e)}", "is_error": True}
+
+    def _search_files(self, arguments: dict) -> dict:
+        """Search files using grep."""
+        pattern = arguments.get("pattern", "")
+        directory = arguments.get("directory", ".")
+
+        try:
+            search_cmd = f"grep -r '{pattern}' {directory} 2>/dev/null || echo 'No matches found'"
+            result = subprocess.run(
+                search_cmd,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            return {"output": result.stdout, "is_error": False}
+        except Exception as e:
+            return {"output": f"Error: {str(e)}", "is_error": True}
+
+    def _execute_python_code(self, arguments: dict) -> dict:
+        """Execute Python code (vulnerable to code injection)."""
+        code = arguments.get("code", "")
+
+        try:
+            result = eval(code)
+            return {"output": f"Result: {result}", "is_error": False}
+        except:
+            try:
+                old_stdout = sys.stdout
+                sys.stdout = buffer = io.StringIO()
+                exec(code)
+                output = buffer.getvalue()
+                sys.stdout = old_stdout
+                return {"output": output, "is_error": False}
+            except Exception as e:
+                return {"output": f"Error: {str(e)}", "is_error": True}
+
+    def _get_environment_variable(self, arguments: dict) -> dict:
+        """Get environment variable."""
+        var_name = arguments.get("var_name", "")
+
+        value = os.environ.get(var_name, "")
+        if value:
+            return {"output": f"{var_name}={value}", "is_error": False}
+        else:
+            return {"output": f"{var_name} not set", "is_error": False}

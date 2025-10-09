@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   mcp-server:
     build:
@@ -18,6 +16,65 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  api-server:
+    build:
+      context: .
+      dockerfile: ./agent/Dockerfile
+    container_name: agent-api-server
+    command: ["python", "api_server.py"]
+    depends_on:
+      mcp-server:
+        condition: service_healthy
+    networks:
+      - research-net
+    ports:
+      - "8123:8123"
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-1.5-flash}
+      - MCP_SERVER_URL=http://mcp-server:8000
+      - MAX_ATTEMPTS=${MAX_ATTEMPTS:-10}
+      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY}
+      - LANGCHAIN_PROJECT=${LANGCHAIN_PROJECT:-llm-sandbox-escape}
+      - LANGCHAIN_TRACING_V2=${LANGCHAIN_TRACING_V2:-true}
+    volumes:
+      - ./results:/app/results
+
+  ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+    container_name: agent-chat-ui
+    ports:
+      - "8080:8080"
+    networks:
+      - research-net
+    depends_on:
+      - api-server
+    environment:
+      - API_URL=http://api-server:8123
+
+  # Optional: CLI agent for one-time runs
+  agent-cli:
+    build:
+      context: .
+      dockerfile: ./agent/Dockerfile
+    container_name: security-researcher-agent
+    depends_on:
+      mcp-server:
+        condition: service_healthy
+    networks:
+      - research-net
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-1.5-flash}
+      - MCP_SERVER_URL=http://mcp-server:8000
+      - MAX_ATTEMPTS=${MAX_ATTEMPTS:-10}
+    volumes:
+      - ./results:/app/results
+    profiles:
+      - cli  # Only run with: docker-compose --profile cli up
 
 networks:
   research-net:
