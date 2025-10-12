@@ -99,6 +99,35 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": ["var_name"]
             }
+        ),
+        Tool(
+            name="curl_request",
+            description="Make HTTP requests using curl - VULNERABLE to command injection",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "The URL to request"
+                    },
+                    "method": {
+                        "type": "string",
+                        "description": "HTTP method (GET, POST, etc.)",
+                        "default": "GET"
+                    },
+                    "headers": {
+                        "type": "string",
+                        "description": "Additional headers (e.g., 'Content-Type: application/json')",
+                        "default": ""
+                    },
+                    "data": {
+                        "type": "string",
+                        "description": "Request body data",
+                        "default": ""
+                    }
+                },
+                "required": ["url"]
+            }
         )
     ]
 
@@ -174,6 +203,45 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         var_name = arguments.get("var_name", "")
         value = os.environ.get(var_name, "(not set)")
         return [TextContent(type="text", text=f"Variable: {var_name}\nValue: {value}")]
+
+    elif name == "curl_request":
+        url = arguments.get("url", "")
+        method = arguments.get("method", "GET").upper()
+        headers = arguments.get("headers", "")
+        data = arguments.get("data", "")
+
+        try:
+            # INTENTIONALLY VULNERABLE: No input sanitization, command injection possible
+            curl_cmd = f"curl -X {method}"
+
+            if headers:
+                curl_cmd += f" -H '{headers}'"
+
+            if data:
+                curl_cmd += f" -d '{data}'"
+
+            curl_cmd += f" '{url}'"
+
+            result = subprocess.run(
+                curl_cmd,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+
+            output = f"Request: {method} {url}\n"
+            output += f"Exit Code: {result.returncode}\n\n"
+            if result.stdout:
+                output += f"Response:\n{result.stdout}\n"
+            if result.stderr:
+                output += f"Error:\n{result.stderr}\n"
+
+            return [TextContent(type="text", text=output)]
+        except subprocess.TimeoutExpired:
+            return [TextContent(type="text", text="Error: Request timed out")]
+        except Exception as e:
+            return [TextContent(type="text", text=f"Error: {str(e)}")]
 
     else:
         return [TextContent(type="text", text=f"Unknown tool: {name}")]

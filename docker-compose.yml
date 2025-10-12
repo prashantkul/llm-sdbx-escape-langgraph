@@ -1,4 +1,6 @@
 services:
+  # Container 1: MCP Server (Vulnerable Target)
+  # Includes: Python, curl, bash, and other system utilities
   mcp-server:
     build:
       context: ./mcp_server
@@ -12,69 +14,39 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: ["CMD", "python", "-c", "import socket; s = socket.socket(); s.settimeout(1); s.connect(('localhost', 8000)); s.close()"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
 
-  api-server:
+  # Container 2: LangGraph Agent + Web UI
+  # Includes: API Server (port 8123) and Web UI (port 8080)
+  langgraph-ui:
     build:
       context: .
       dockerfile: ./agent/Dockerfile
-    container_name: agent-api-server
-    command: ["python", "api_server.py"]
+    container_name: langgraph-agent-ui
     depends_on:
       mcp-server:
         condition: service_healthy
     networks:
       - research-net
     ports:
-      - "8123:8123"
+      - "8123:8123"  # API Server
+      - "8080:8080"  # Web UI
     environment:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-1.5-flash}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
       - MCP_SERVER_URL=http://mcp-server:8000
       - MAX_ATTEMPTS=${MAX_ATTEMPTS:-10}
-      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY}
+      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY:-}
       - LANGCHAIN_PROJECT=${LANGCHAIN_PROJECT:-llm-sandbox-escape}
-      - LANGCHAIN_TRACING_V2=${LANGCHAIN_TRACING_V2:-true}
+      - LANGCHAIN_TRACING_V2=${LANGCHAIN_TRACING_V2:-false}
+      - PYTHONUNBUFFERED=1
     volumes:
-      - ./results:/app/results
-
-  ui:
-    build:
-      context: ./ui
-      dockerfile: Dockerfile
-    container_name: agent-chat-ui
-    ports:
-      - "8080:8080"
-    networks:
-      - research-net
-    depends_on:
-      - api-server
-    environment:
-      - API_URL=http://api-server:8123
-
-  # Optional: CLI agent for one-time runs
-  agent-cli:
-    build:
-      context: .
-      dockerfile: ./agent/Dockerfile
-    container_name: security-researcher-agent
-    depends_on:
-      mcp-server:
-        condition: service_healthy
-    networks:
-      - research-net
-    environment:
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-1.5-flash}
-      - MCP_SERVER_URL=http://mcp-server:8000
-      - MAX_ATTEMPTS=${MAX_ATTEMPTS:-10}
-    volumes:
-      - ./results:/app/results
-    profiles:
-      - cli  # Only run with: docker-compose --profile cli up
+      - ./agent/results:/app/agent/results
+    restart: unless-stopped
 
 networks:
   research-net:
