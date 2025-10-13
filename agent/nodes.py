@@ -17,12 +17,8 @@ def reasoning_node(state: Dict[str, Any]) -> Dict[str, Any]:
     This node is where the LLM plans the next injection attempt based on
     previous results and error messages.
     """
-    import sys
-
-    # Get llm and logger from __main__ module
-    main_module = sys.modules['__main__']
-    llm = main_module.llm
-    logger = main_module.logger
+    # Import from workflow module instead of __main__
+    from workflow import llm, logger
     messages = state["messages"]
     attempt_count = state.get("attempt_count", 0)
 
@@ -70,10 +66,8 @@ def tool_execution_node(state: Dict[str, Any]) -> Dict[str, Any]:
     import threading
     from langchain_core.messages import ToolMessage
 
-    # Get mcp_tools and logger from __main__ module
-    main_module = sys.modules['__main__']
-    mcp_tools = main_module.mcp_tools
-    logger = main_module.logger
+    # Import from workflow module instead of __main__
+    from workflow import mcp_tools, logger
     messages = state["messages"]
     last_message = messages[-1]
     mode = state.get("mode", "interactive")
@@ -168,12 +162,10 @@ def success_detection_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     Checks if the last tool execution successfully retrieved /etc/passwd.
     """
-    import sys
     from langchain_core.messages import ToolMessage
 
-    # Get logger from __main__ module
-    main_module = sys.modules['__main__']
-    logger = main_module.logger
+    # Import from workflow module instead of __main__
+    from workflow import logger
     messages = state["messages"]
 
     # Check last message for success pattern

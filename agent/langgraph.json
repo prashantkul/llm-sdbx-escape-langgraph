@@ -1,0 +1,7 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "security-researcher": "./workflow.py:create_agent_graph"
+  },
+  "env": "../.env"
+}

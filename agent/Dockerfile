@@ -34,6 +34,14 @@ RUN mkdir -p /var/log/supervisor && \
     echo "stderr_logfile=/var/log/supervisor/api_server.err.log" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "stdout_logfile=/var/log/supervisor/api_server.out.log" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "[program:api_server_langgraph]" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "command=python /app/agent/api_server_langgraph.py" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "directory=/app/agent" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "autostart=true" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "autorestart=true" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "stderr_logfile=/var/log/supervisor/api_server_langgraph.err.log" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "stdout_logfile=/var/log/supervisor/api_server_langgraph.out.log" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "[program:ui_server]" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "command=python /app/ui/server.py" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "directory=/app/ui" >> /etc/supervisor/conf.d/supervisord.conf && \
@@ -43,7 +51,7 @@ RUN mkdir -p /var/log/supervisor && \
     echo "stdout_logfile=/var/log/supervisor/ui_server.out.log" >> /etc/supervisor/conf.d/supervisord.conf
 
 # Expose ports
-EXPOSE 8123 8080
+EXPOSE 8123 8124 8080
 
 # Run supervisor
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

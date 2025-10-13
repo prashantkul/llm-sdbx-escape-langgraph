@@ -29,10 +29,10 @@ base_llm = ChatGoogleGenerativeAI(
     temperature=0.7
 )
 
-# Initialize MCP client and load tools
+# Initialize MCP client and load tools at module level
 mcp_client = None
 mcp_tools = []
-llm = None
+llm = base_llm  # Will be updated after MCP initialization
 
 async def initialize_mcp_async():
     """Initialize MCP client and load tools (async version)."""
@@ -86,9 +86,17 @@ def initialize_mcp():
         # No event loop running, safe to use asyncio.run()
         asyncio.run(initialize_mcp_async())
 
-# Global instances for MCP client and logger (initialized in main)
-mcp_client = None
+# Global instances for logger (initialized when needed)
 logger = None
+
+# Initialize MCP at module import time for LangGraph CLI
+print("Initializing MCP client...")
+try:
+    initialize_mcp()
+    print(f"✓ MCP initialized with {len(mcp_tools)} tools")
+except Exception as e:
+    print(f"⚠ Warning: MCP initialization failed: {e}")
+    print("  Agent will work without MCP tools")
 
 
 class AgentState(TypedDict):

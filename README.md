@@ -14,38 +14,54 @@ This project demonstrates how an LLM-powered agent can exploit command injection
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────┐         SSE/HTTP         ┌─────────────────────┐
+┌─────────────────────┐      HTTP/MCP SDK       ┌─────────────────────┐
 │   LangGraph Agent   │────────────────────────▶│  Vulnerable MCP     │
 │   (Security Role)   │                          │  Server (Docker)    │
 │                     │◀────────────────────────│                     │
 │  - Reasoning Node   │      Tool Results        │  - Command Exec     │
 │  - Tool Call Node   │                          │  - No Sanitization  │
-│  - Reflection Node  │                          │                     │
-│  - Success Check    │                          │  execute_shell_cmd  │
+│  - Success Check    │                          │  - 6 Tools          │
 └─────────────────────┘                          └─────────────────────┘
          │                                                  │
          │                                                  │
          ▼                                                  ▼
   ┌──────────────┐                                  ┌──────────────┐
-  │ Ollama LLM   │                                  │ /etc/passwd  │
-  │ (Cloud Run)  │                                  │   (Target)   │
+  │ Google       │                                  │ /etc/passwd  │
+  │ Gemini API   │                                  │   (Target)   │
   └──────────────┘                                  └──────────────┘
+         │
+         │ Chat UI Compatible (LangGraph Cloud API)
+         ▼
+  ┌──────────────┐
+  │ agentchat    │
+  │ .vercel.app  │
+  └──────────────┘
 ```
 
 ### Components
 
 1. **MCP Server** (`mcp_server/`)
-   - Full MCP protocol implementation over SSE
-   - Intentionally vulnerable `execute_shell_command` tool
+   - Full MCP protocol implementation using `langchain-mcp-adapters`
+   - 6 intentionally vulnerable tools:
+     - `execute_shell_command`: Command injection vulnerability
+     - `read_file`: File access tool
+     - `search_files`: Pattern search in files
+     - `execute_python_code`: Python code execution
+     - `get_environment_variable`: Environment variable access
+     - `curl_request`: HTTP requests via curl
    - Uses `subprocess.run(shell=True)` with no input sanitization
    - Runs in Docker container as non-root user
 
 2. **LangGraph Agent** (`agent/`)
-   - Stateful workflow with reasoning, execution, and reflection nodes
-   - System prompt with security researcher persona
-   - Few-shot examples of command injection techniques
-   - Iterative attack loop (max 10 attempts)
-   - Success detection via regex pattern matching
+   - Deployed using official **LangGraph CLI** (`langgraph dev`)
+   - Chat UI compatible with LangGraph Cloud API format
+   - Stateful workflow with reasoning, execution, and success detection nodes
+   - Two modes:
+     - **Auto mode**: Security researcher persona with few-shot examples
+     - **Interactive mode**: User-guided assistant for manual testing
+   - MCP integration via `MultiServerMCPClient` from `langchain-mcp-adapters`
+   - Google Gemini 2.5 Flash for LLM reasoning
+   - LangSmith tracing enabled for debugging
 
 3. **Logging System** (`logging/`)
    - Text-based experiment logs
@@ -56,24 +72,31 @@ This project demonstrates how an LLM-powered agent can exploit command injection
 
 - Docker & Docker Compose
 - Python 3.11+
-- Ollama instance (local or Cloud Run)
+- Conda (recommended)
+- Google Gemini API key
+- (Optional) LangSmith API key for tracing
 
 ## 🚀 Quick Start
 
-### 1. Configure Ollama Endpoint
+### 1. Configure Environment
 
-Set your Ollama configuration in `agent/config.py`:
-
-```python
-OLLAMA_BASE_URL = "https://your-ollama-instance.run.app"
-OLLAMA_MODEL = "your-uncensored-model-name"
-```
-
-Or use environment variables:
+Create a `.env` file in the root directory:
 
 ```bash
-export OLLAMA_BASE_URL="https://your-ollama-instance.run.app"
-export OLLAMA_MODEL="your-model-name"
+# Google Gemini API Key
+GOOGLE_API_KEY=your-gemini-api-key
+
+# MCP Server Configuration
+MCP_SERVER_URL=http://localhost:8000
+
+# Agent Configuration
+MAX_ATTEMPTS=2
+GEMINI_MODEL=gemini-2.5-flash
+
+# LangSmith Configuration (optional)
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_API_KEY=your-langsmith-api-key
+LANGCHAIN_PROJECT=llm-sandbox-escape
 ```
 
 ### 2. Start the MCP Server
@@ -85,19 +108,51 @@ docker-compose up -d
 Verify it's running:
 ```bash
 curl http://localhost:8000/health
+docker ps --filter "name=mcp"
 ```
 
 ### 3. Install Agent Dependencies
 
 ```bash
 cd agent
+conda create -n lang_sdbx python=3.11
+conda activate lang_sdbx
 pip install -r requirements.txt
 ```
 
-### 4. Run the Security Test
+### 4. Start the LangGraph Server
 
 ```bash
-python workflow.py
+cd agent
+conda activate lang_sdbx
+langgraph dev --port 2024
+```
+
+The server will start on `http://localhost:2024` with:
+- 🚀 API: http://localhost:2024
+- 📚 API Docs: http://localhost:2024/docs
+- 🎨 LangSmith Studio: Available through the provided URL
+
+### 5. Use with Chat UI
+
+Access the agent through any LangGraph-compatible chat interface:
+- **Web**: Visit https://agentchat.vercel.app
+- **Base URL**: `http://localhost:2024`
+- **Assistant**: Select "security-researcher"
+
+Or test via API:
+```bash
+# Create a thread
+curl -X POST http://localhost:2024/threads -H "Content-Type: application/json" -d '{}'
+
+# Send a message
+curl -X POST "http://localhost:2024/threads/{thread_id}/runs" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "assistant_id": "security-researcher",
+    "input": {"messages": [{"role": "user", "content": "What tools do you have?"}]},
+    "stream_mode": "values"
+  }'
 ```
 
 ## 📊 Output
@@ -176,21 +231,21 @@ Key parameters in `agent/config.py`:
 ```
 llm-sdbx-escape-langgraph/
 ├── mcp_server/
-│   ├── server.py              # MCP server with SSE transport
-│   ├── tools.py               # Vulnerable execute_shell_command
+│   ├── server_official.py     # MCP server implementation
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── agent/
-│   ├── workflow.py            # Main LangGraph workflow
-│   ├── nodes.py               # Graph nodes (reasoning, tool_call, etc.)
-│   ├── prompts.py             # System prompt + few-shot examples
-│   ├── config.py              # Configuration
-│   ├── mcp_client.py          # MCP SSE client
+│   ├── workflow.py            # Main LangGraph workflow with MCP integration
+│   ├── nodes.py               # Graph nodes (reasoning, tool_call, success_check)
+│   ├── prompts.py             # System prompts for auto & interactive modes
+│   ├── config.py              # Configuration (Gemini, MCP, LangSmith)
+│   ├── langgraph.json         # LangGraph CLI configuration
 │   └── requirements.txt
 ├── logging/
 │   └── logger.py              # Text-based logging
 ├── results/                   # Experiment logs (gitignored)
-├── docker-compose.yml
+├── docker-compose.yml         # MCP server in Docker
+├── .env                       # Environment configuration (gitignored)
 ├── CLAUDE.md                  # Agent instructions
 └── README.md
 ```
