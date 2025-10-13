@@ -155,6 +155,37 @@ curl -X POST "http://localhost:2024/threads/{thread_id}/runs" \
   }'
 ```
 
+## 🐳 Docker Deployment
+
+Deploy both the MCP server and LangGraph agent in Docker containers:
+
+### 1. Ensure .env file exists
+Make sure you have a `.env` file in the root directory with your configuration (see step 1 above).
+
+### 2. Build and start all containers
+```bash
+docker-compose up -d
+```
+
+This will start two containers:
+- **vulnerable-mcp-server**: MCP server on port 8000
+- **langgraph-agent**: LangGraph agent on port 2024
+
+### 3. Check container status
+```bash
+docker-compose ps
+docker logs langgraph-agent
+docker logs vulnerable-mcp-server
+```
+
+### 4. Access the agent
+The agent will be available at `http://localhost:2024` - use it with any LangGraph-compatible chat UI.
+
+### 5. Stop containers
+```bash
+docker-compose down
+```
+
 ## 📊 Output
 
 ### Console Output

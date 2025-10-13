@@ -1,6 +1,5 @@
 services:
   # Container 1: MCP Server (Vulnerable Target)
-  # Includes: Python, curl, bash, and other system utilities
   mcp-server:
     build:
       context: ./mcp_server
@@ -20,73 +19,30 @@ services:
       retries: 5
       start_period: 10s
 
-  # Container 2: Custom API Server (port 8123)
-  api-server:
+  # Container 2: LangGraph Agent (Official LangGraph CLI)
+  langgraph-agent:
     build:
-      context: .
-      dockerfile: ./agent/Dockerfile.api
-    container_name: custom-api-server
+      context: ./agent
+      dockerfile: Dockerfile
+    container_name: langgraph-agent
     depends_on:
       mcp-server:
         condition: service_healthy
     networks:
       - research-net
     ports:
-      - "8123:8123"
+      - "2024:2024"
     environment:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
       - MCP_SERVER_URL=http://mcp-server:8000
-      - MAX_ATTEMPTS=${MAX_ATTEMPTS:-10}
+      - MAX_ATTEMPTS=${MAX_ATTEMPTS:-2}
       - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY:-}
       - LANGCHAIN_PROJECT=${LANGCHAIN_PROJECT:-llm-sandbox-escape}
       - LANGCHAIN_TRACING_V2=${LANGCHAIN_TRACING_V2:-false}
       - PYTHONUNBUFFERED=1
     volumes:
-      - ./agent/results:/app/agent/results
-    restart: unless-stopped
-
-  # Container 3: LangGraph-compatible API Server (port 8124)
-  langgraph-api:
-    build:
-      context: .
-      dockerfile: ./agent/Dockerfile.langgraph
-    container_name: langgraph-api-server
-    depends_on:
-      mcp-server:
-        condition: service_healthy
-    networks:
-      - research-net
-    ports:
-      - "8124:8124"
-    environment:
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
-      - MCP_SERVER_URL=http://mcp-server:8000
-      - MAX_ATTEMPTS=${MAX_ATTEMPTS:-10}
-      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY:-}
-      - LANGCHAIN_PROJECT=${LANGCHAIN_PROJECT:-llm-sandbox-escape}
-      - LANGCHAIN_TRACING_V2=${LANGCHAIN_TRACING_V2:-false}
-      - PYTHONUNBUFFERED=1
-    volumes:
-      - ./agent/results:/app/agent/results
-    restart: unless-stopped
-
-  # Container 4: Web UI (port 8080)
-  web-ui:
-    build:
-      context: .
-      dockerfile: ./agent/Dockerfile.ui
-    container_name: web-ui
-    depends_on:
-      - api-server
-    networks:
-      - research-net
-    ports:
-      - "8080:8080"
-    environment:
-      - API_SERVER_URL=http://api-server:8123
-      - PYTHONUNBUFFERED=1
+      - ./results:/app/results
     restart: unless-stopped
 
 networks:
