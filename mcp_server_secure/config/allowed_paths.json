@@ -1,0 +1,16 @@
+{
+  "allowed_paths": [
+    "/app/data",
+    "/tmp"
+  ],
+  "blocked_patterns": [
+    "/etc/passwd",
+    "/etc/shadow",
+    "/root",
+    "/proc",
+    "/sys",
+    "/var",
+    "/.ssh",
+    "/home"
+  ]
+}

@@ -1,0 +1,57 @@
+# Secure MCP Server Dockerfile
+# Multi-stage build for minimal attack surface
+FROM python:3.11-slim as builder
+
+WORKDIR /build
+
+# Install dependencies in builder stage
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+
+# Final stage - minimal image
+FROM python:3.11-slim
+
+# Install curl for the curl command tool
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create non-root user with specific UID/GID
+RUN groupadd -r -g 1000 mcpuser && \
+    useradd -r -u 1000 -g mcpuser -m -s /bin/bash mcpuser
+
+# Create application directory
+WORKDIR /app
+
+# Copy Python dependencies from builder
+COPY --from=builder /root/.local /home/mcpuser/.local
+
+# Copy application code
+COPY --chown=mcpuser:mcpuser . /app/
+
+# Create allowed directories
+RUN mkdir -p /app/data /tmp && \
+    chown -R mcpuser:mcpuser /app/data /tmp && \
+    chmod 755 /app/data /tmp
+
+# Remove sensitive files that shouldn't be accessible
+RUN rm -f /etc/shadow* /root/.bash_history 2>/dev/null || true
+
+# Set PATH for user-installed packages
+ENV PATH="/home/mcpuser/.local/bin:${PATH}"
+ENV PYTHONUNBUFFERED=1
+
+# Security: Drop to non-root user
+USER mcpuser
+
+# Expose port
+EXPOSE 8000
+
+# Health check - verify MCP endpoint responds
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8000/mcp || exit 1
+
+# Run the secure MCP server
+CMD ["python", "server_official_secure.py"]

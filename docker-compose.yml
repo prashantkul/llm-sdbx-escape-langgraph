@@ -19,6 +19,37 @@ services:
       retries: 5
       start_period: 10s
 
+  # Container 1.5: Secure MCP Server (Hardened Target)
+  mcp-server-secure:
+    build:
+      context: ./mcp_server_secure
+      dockerfile: Dockerfile.secure
+    container_name: secure-mcp-server
+    ports:
+      - "8001:8001"
+    networks:
+      - research-net
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - sandbox-data:/app/data
+    # Security hardening
+    read_only: true
+    tmpfs:
+      - /tmp:size=100M,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    user: "1000:1000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s = socket.socket(); s.settimeout(1); s.connect(('localhost', 8001)); s.close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   # Container 2: LangGraph Agent (Official LangGraph CLI)
   langgraph-agent:
     build:
@@ -28,6 +59,8 @@ services:
     depends_on:
       mcp-server:
         condition: service_healthy
+      mcp-server-secure:
+        condition: service_healthy
     networks:
       - research-net
     ports:
@@ -35,7 +68,9 @@ services:
     environment:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - TARGET_SERVER=${TARGET_SERVER:-vulnerable}
       - MCP_SERVER_URL=http://mcp-server:8000
+      - MCP_SERVER_SECURE_URL=http://mcp-server-secure:8001
       - MAX_ATTEMPTS=${MAX_ATTEMPTS:-2}
       - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY:-}
       - LANGCHAIN_PROJECT=${LANGCHAIN_PROJECT:-llm-sandbox-escape}
@@ -44,6 +79,10 @@ services:
     volumes:
       - ./results:/app/results
     restart: unless-stopped
+
+volumes:
+  sandbox-data:
+    driver: local
 
 networks:
   research-net:

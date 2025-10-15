@@ -1,0 +1,28 @@
+{
+  "allowed_commands": {
+    "ls": {
+      "allowed_args": ["-la", "-l", "-a", ""],
+      "description": "List directory contents"
+    },
+    "pwd": {
+      "allowed_args": [""],
+      "description": "Print working directory"
+    },
+    "whoami": {
+      "allowed_args": [""],
+      "description": "Print current user"
+    },
+    "cat": {
+      "allowed_args": [],
+      "require_path_validation": true,
+      "description": "Read file contents (restricted paths)"
+    },
+    "curl": {
+      "allowed_args": ["-I", "--head", "-s", "--silent"],
+      "blocked_protocols": ["file://", "ftp://", "gopher://", "dict://"],
+      "allow_redirect": false,
+      "description": "Test website availability (HTTP/HTTPS only)"
+    }
+  },
+  "dangerous_characters": [";", "|", "&", "$", "`", "$(", "${", ">", "<", ">>", "\\n", "\\r"]
+}
