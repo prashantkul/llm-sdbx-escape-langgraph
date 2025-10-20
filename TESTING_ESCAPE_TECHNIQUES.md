@@ -2,7 +2,33 @@
 
 ## Quick Start
 
-You now have two ways to test sandbox escape techniques:
+You now have **three** ways to test sandbox escape techniques:
+
+### 0. Bypass Strategy Testing (NEW - Tests Secure MCP Server)
+
+Run comprehensive bypass strategy tests against the **hardened secure MCP server**:
+
+```bash
+cd /Users/prashantkulkarni/Documents/source-code/llm-sdbx-escape-langgraph
+conda activate lang_sdbx
+python tests/test_agent_bypass_strategies.py
+```
+
+This will:
+- Test the **agent's autonomous exploitation capabilities** against the secure server
+- Execute 9+ sophisticated bypass prompts from BYPASS_STRATEGIES.md
+- Test command chaining, path traversal, SSRF, symlink attacks, and social engineering
+- Generate a detailed report showing which attacks succeeded/failed
+- Take approximately 5-10 minutes to complete
+
+**Latest Results (2025-10-19)**:
+- Security Score: **88.9%** (8/9 attacks blocked)
+- Only 1 vulnerability found: curl localhost port scanning (LOW impact)
+- All path traversal, command injection, and social engineering attacks blocked
+
+See detailed results in: `mcp_server_secure/BYPASS_STRATEGIES.md`
+
+---
 
 ### 1. Automated Testing (Recommended for Systematic Research)
 

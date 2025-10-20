@@ -21,11 +21,12 @@ import uuid
 
 # Add security module to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from security import PathValidator, CommandValidator
+from security import PathValidator, CommandValidator, get_executor
 
 # Initialize validators
 path_validator = PathValidator()
 command_validator = CommandValidator()
+python_executor = get_executor()
 
 # Initialize MCP server
 mcp_server = Server("secure-mcp-server")
@@ -186,19 +187,21 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     elif name == "execute_python_code":
         code = arguments.get("code", "")
 
-        # Basic validation
-        dangerous_imports = ['os', 'subprocess', 'sys', '__import__', 'eval', 'exec', 'open']
-        for dangerous in dangerous_imports:
-            if dangerous in code:
-                log_security_event("PYTHON_BLOCKED", {
-                    "code": code[:100],
-                    "reason": f"Dangerous pattern '{dangerous}' detected"
-                })
-                return [TextContent(type="text", text=f"Error: Code contains dangerous pattern '{dangerous}'")]
+        # Execute code using sandboxed executor
+        success, output = python_executor.execute(code)
 
-        log_security_event("PYTHON_EXECUTED", {"code": code[:100]})
-
-        return [TextContent(type="text", text=f"Error: Python code execution is disabled in secure mode")]
+        if success:
+            log_security_event("PYTHON_EXECUTED", {
+                "code": code[:100],
+                "output_length": len(output)
+            })
+            return [TextContent(type="text", text=output)]
+        else:
+            log_security_event("PYTHON_BLOCKED", {
+                "code": code[:100],
+                "reason": output
+            })
+            return [TextContent(type="text", text=output)]
 
     else:
         return [TextContent(type="text", text=f"Error: Unknown tool: {name}")]
