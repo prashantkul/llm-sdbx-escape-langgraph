@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  baseline-mcp-server:
+    build: .
+    container_name: baseline-mcp-server
+    ports:
+      - "8002:8002"  # HTTP/SSE on port 8002
+
+    # ✅ SECURITY: Volume for data only (not code)
+    volumes:
+      - ./data:/app/data
+      # ❌ SECURITY GAP: Still mounting host directory
+      # ❌ SECURITY GAP: Not read-only
+
+    environment:
+      - LOG_LEVEL=INFO
+      - PYTHONUNBUFFERED=1
+
+    # ✅ SECURITY: Resource limits (prevent DoS)
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+    # ✅ SECURITY: Drop all capabilities, add back only needed ones
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN      # For file ownership changes
+      - DAC_OVERRIDE  # For file access
+      # ❌ SECURITY GAP: These capabilities still allow some exploits
+
+    # ✅ SECURITY: Prevent privilege escalation
+    security_opt:
+      - no-new-privileges:true
+      # ❌ SECURITY GAP: No custom AppArmor/SELinux profile
+      # ❌ SECURITY GAP: No custom seccomp profile
+
+    # ✅ SECURITY: Restart policy (don't restart indefinitely)
+    restart: on-failure:3
+
+    # ❌ SECURITY GAP: Network not restricted
+    # ❌ SECURITY GAP: Can access cloud metadata
+    # ❌ SECURITY GAP: Can make external connections
+    networks:
+      - mcp-network
+
+    # ✅ SECURITY: Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+networks:
+  mcp-network:
+    driver: bridge
+    # ❌ SECURITY GAP: No network restrictions
+    # ❌ SECURITY GAP: Full external connectivity

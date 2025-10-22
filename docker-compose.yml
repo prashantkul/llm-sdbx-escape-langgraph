@@ -50,6 +50,44 @@ services:
       retries: 5
       start_period: 10s
 
+  # Container 1.75: Baseline MCP Server (Best Practices with Gaps)
+  mcp-server-baseline:
+    build:
+      context: ./mcp_server_baseline
+      dockerfile: Dockerfile
+    container_name: baseline-mcp-server
+    ports:
+      - "8002:8002"
+    networks:
+      - research-net
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./mcp_server_baseline/data:/app/data
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s = socket.socket(); s.settimeout(1); s.connect(('localhost', 8002)); s.close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   # Container 2: LangGraph Agent (Official LangGraph CLI)
   langgraph-agent:
     build:
@@ -61,6 +99,8 @@ services:
         condition: service_healthy
       mcp-server-secure:
         condition: service_healthy
+      mcp-server-baseline:
+        condition: service_healthy
     networks:
       - research-net
     ports:
@@ -71,6 +111,7 @@ services:
       - TARGET_SERVER=${TARGET_SERVER:-vulnerable}
       - MCP_SERVER_URL=http://mcp-server:8000
       - MCP_SERVER_SECURE_URL=http://mcp-server-secure:8001
+      - MCP_SERVER_BASELINE_URL=http://mcp-server-baseline:8002
       - MAX_ATTEMPTS=${MAX_ATTEMPTS:-2}
       - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY:-}
       - LANGCHAIN_PROJECT=${LANGCHAIN_PROJECT:-llm-sandbox-escape}

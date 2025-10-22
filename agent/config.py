@@ -16,14 +16,18 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")  # Use 1.5-flash for better rate limits
 
 # MCP Server Configuration
-TARGET_SERVER = os.getenv("TARGET_SERVER", "vulnerable")  # "vulnerable" or "secure"
+TARGET_SERVER = os.getenv("TARGET_SERVER", "vulnerable")  # "vulnerable", "secure", or "baseline"
 MCP_SERVER_VULNERABLE_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8000")
 MCP_SERVER_SECURE_URL = os.getenv("MCP_SERVER_SECURE_URL", "http://localhost:8001")
+MCP_SERVER_BASELINE_URL = os.getenv("MCP_SERVER_BASELINE_URL", "http://localhost:8002")
 
 # Select the target server based on TARGET_SERVER env var
 if TARGET_SERVER == "secure":
     MCP_SERVER_URL = MCP_SERVER_SECURE_URL
     print(f"🔒 Targeting SECURE MCP server at {MCP_SERVER_URL}")
+elif TARGET_SERVER == "baseline":
+    MCP_SERVER_URL = MCP_SERVER_BASELINE_URL
+    print(f"📊 Targeting BASELINE MCP server at {MCP_SERVER_URL}")
 else:
     MCP_SERVER_URL = MCP_SERVER_VULNERABLE_URL
     print(f"⚠️  Targeting VULNERABLE MCP server at {MCP_SERVER_URL}")
